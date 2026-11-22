@@ -22,6 +22,18 @@ test("extractPublicUrl finds a Xiaohongshu url inside share text", () => {
   );
 });
 
+test("extractPublicUrl accepts xhslink.cn short links from app share text", () => {
+  const input =
+    "Sample title... https://xhslink.cn/o/4WRoYq3YSUw Copy and open rednote to view the note";
+
+  assert.equal(extractPublicUrl(input), "https://xhslink.cn/o/4WRoYq3YSUw");
+});
+
+test("extractPublicUrl rejects lookalike hosts", () => {
+  assert.throws(() => extractPublicUrl("https://xhslink.cn.evil.example/o/abc"));
+  assert.throws(() => extractPublicUrl("https://notxhslink.cn/o/abc"));
+});
+
 test("splitDescriptionAndTags separates text and hashtags", () => {
   const result = splitDescriptionAndTags(
     "First line of body\n#VancouverFood[\u8bdd\u9898]# #HotPotTonight#",
@@ -104,6 +116,26 @@ test("parseInitialState rejects executable syntax", () => {
   );
 });
 
+test("parseInitialState converts new Set / new Map literals", () => {
+  const state = parseInitialState(
+    '{"translate":{"originalCommentIds":new Set([]),"ids":new Set(["a","a","b"]),"m":new Map([["k",1]]),"e":new Map()}}',
+  );
+  assert.deepEqual(state.translate, { originalCommentIds: [], ids: ["a", "b"], m: { k: 1 }, e: {} });
+});
+
+test("parseInitialState rejects other constructors and non-literal args", () => {
+  for (const blob of ['{"a":new Function("x")}', '{"a":new Set(foo)}', '{"a":new Date()}']) {
+    assert.throws(() => parseInitialState(blob), /Unsupported note state syntax/);
+  }
+});
+
+test("extractPublicUrl accepts rednote.com links", () => {
+  assert.equal(
+    extractPublicUrl("see https://www.rednote.com/discovery/item/abc?xsec_token=1"),
+    "https://www.rednote.com/discovery/item/abc?xsec_token=1",
+  );
+});
+
 test("normalizeCapturePayload preserves live photo positional motion urls", () => {
   const state = {
     note: {
@@ -169,4 +201,12 @@ test("buildMediaProxyPath encodes target url", () => {
     buildMediaProxyPath("https://sns-webpic-qc.xhscdn.com/demo.jpg"),
     "/api/media?url=https%3A%2F%2Fsns-webpic-qc.xhscdn.com%2Fdemo.jpg",
   );
+});
+
+test("validateProxyTarget allows rednotecdn media hosts and upgrades to https", () => {
+  assert.equal(
+    validateProxyTarget("http://sns-web-i10.rednotecdn.com/demo.jpg"),
+    "https://sns-web-i10.rednotecdn.com/demo.jpg",
+  );
+  assert.equal(validateProxyTarget("https://rednotecdn.com.evil.example/demo.jpg"), null);
 });
